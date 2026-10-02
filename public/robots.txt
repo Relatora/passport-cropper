@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://relatora.github.io/passport-cropper/sitemap.xml
