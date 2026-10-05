@@ -16,7 +16,7 @@ export interface CropBox {
 }
 
 /** What kind of picture the user uploaded; selects the detection algorithm. */
-export type DetectMode = 'scan' | 'faces' | 'grid';
+export type DetectMode = 'scan' | 'faces';
 
 export interface SizePreset {
   id: string;

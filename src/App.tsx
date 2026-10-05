@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CropEditor } from './components/CropEditor';
+import { HelpWizard } from './components/HelpWizard';
+import { IconAlert, IconCheck, IconHelp, IconLock } from './components/Icons';
 import { PreviewStrip } from './components/PreviewStrip';
 import { Toolbar, type Settings } from './components/Toolbar';
 import { UploadDropzone } from './components/UploadDropzone';
@@ -18,15 +20,26 @@ interface LoadedImage {
 let idCounter = 0;
 const withId = (b: RawBox): CropBox => ({ ...b, id: `b${++idCounter}` });
 
+type StatusKind = 'busy' | 'done' | 'info';
+
+/** Remembers that the intro wizard was seen. Storage may be unavailable (private mode). */
+const INTRO_KEY = 'passport-cropper:intro-seen';
+const introSeen = () => { try { return localStorage.getItem(INTRO_KEY) === '1'; } catch { return false; } };
+const markIntroSeen = () => { try { localStorage.setItem(INTRO_KEY, '1'); } catch { /* not persisted */ } };
+
 export default function App() {
   const [image, setImage] = useState<LoadedImage | null>(null);
   const [boxes, setBoxes] = useState<CropBox[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [status, setStatus] = useState('');
+  const [status, setStatusText] = useState('');
+  const [statusKind, setStatusKind] = useState<StatusKind>('info');
+  const setStatus = useCallback((text: string, kind: StatusKind = 'busy') => { setStatusText(text); setStatusKind(kind); }, []);
+  // A link ending in #example opens straight into the example, so skip the intro there.
+  const [helpOpen, setHelpOpen] = useState(() => !introSeen() && location.hash !== '#example');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [settings, setSettings] = useState<Settings>({
-    mode: 'scan', presetId: PRESETS[0].id, customW: 35, customH: 45, dpi: 300, rows: 0, cols: 0, orient: true,
+    mode: 'scan', presetId: PRESETS[0].id, customW: 35, customH: 45, dpi: 300, orient: true,
   });
 
   const preset = useMemo(
@@ -51,26 +64,24 @@ export default function App() {
     setError('');
     try {
       const found = await detect(img.bitmap, {
-        mode: s.mode, preset, rows: s.rows, cols: s.cols, orient: s.orient, onStatus: setStatus,
+        mode: s.mode, preset, orient: s.orient, onStatus: setStatus,
       });
       if (run !== detectRun.current) return;
       setBoxes(found.map(withId));
       setSelectedId(null);
-      const gridHint = s.mode === 'grid' && !(s.rows && s.cols) ? ' If the grid split is wrong, enter the rows and columns and detect again.' : '';
-      setStatus(found.length
-        ? `Found ${found.length} photo${found.length === 1 ? '' : 's'}. Adjust the boxes if needed, then download.${gridHint}`
-        : 'Nothing found. Try another picture type, or add boxes by hand.');
+      if (found.length) setStatus(`Found ${found.length} photo${found.length === 1 ? '' : 's'}. Adjust the boxes if needed, then download.`, 'done');
+      else setStatus('Nothing found. Try the other picture type, or add boxes by hand.', 'info');
     } catch (err) {
       if (run !== detectRun.current) return;
       console.error(err);
       setError(`Detection failed: ${err instanceof Error ? err.message : String(err)}`);
-      setStatus('');
+      setStatus('', 'info');
     } finally {
       if (run === detectRun.current) setBusy(false);
     }
-  }, [preset]);
+  }, [preset, setStatus]);
 
-  const onFile = useCallback(async (file: File) => {
+  const loadFile = useCallback(async (file: File, s: Settings) => {
     try {
       // The previous bitmap is left to the garbage collector rather than close()d:
       // Konva or an in-flight detection may still be drawing from it.
@@ -78,11 +89,36 @@ export default function App() {
       const loaded = { bitmap, baseName: file.name.replace(/\.[^.]+$/, '') || 'photo' };
       setImage(loaded);
       setBoxes([]);
-      void runDetect(loaded, settings);
+      void runDetect(loaded, s);
     } catch {
       setError('Could not read that file. Please use a JPEG or PNG image.');
     }
-  }, [runDetect, settings]);
+  }, [runDetect]);
+
+  const onFile = useCallback((file: File) => loadFile(file, settings), [loadFile, settings]);
+
+  const closeHelp = () => { setHelpOpen(false); markIntroSeen(); };
+
+  /** Load the bundled example scan (in scan mode) so people can try the app without a photo. */
+  const tryExample = async () => {
+    closeHelp();
+    try {
+      const blob = await (await fetch(`${import.meta.env.BASE_URL}demo-scan.png`)).blob();
+      const s = { ...settings, mode: 'scan' as const };
+      setSettings(s);
+      await loadFile(new File([blob], 'example-scan.png', { type: blob.type }), s);
+    } catch {
+      setError('Could not load the example image.');
+    }
+  };
+
+  // Shareable demo link: …/passport-cropper/#example loads the example scan on arrival.
+  const exampleRequested = useRef(location.hash === '#example');
+  useEffect(() => {
+    if (!exampleRequested.current) return;
+    exampleRequested.current = false;
+    void tryExample();
+  });
 
   const updateBox = (box: CropBox) => setBoxes((bs) => bs.map((b) => (b.id === box.id ? box : b)));
 
@@ -120,10 +156,10 @@ export default function App() {
   const downloadAll = async () => {
     if (!image) return;
     setBusy(true);
-    setStatus('Preparing ZIP…');
+    setStatus('Preparing ZIP…', 'busy');
     try {
       downloadBlob(await exportZip(image.bitmap, boxes, preset, settings.dpi, image.baseName), `${image.baseName}-passport-photos.zip`);
-      setStatus(`Downloaded ${boxes.length} photo${boxes.length === 1 ? '' : 's'}.`);
+      setStatus(`Downloaded ${boxes.length} photo${boxes.length === 1 ? '' : 's'}.`, 'done');
     } catch (err) {
       setError(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -133,9 +169,25 @@ export default function App() {
 
   return (
     <div className="app">
-      <header>
-        <h1>Passport Photo Cropper</h1>
-        <p>Upload a picture with several passport photos. They are found, straightened and cropped to the size you choose.</p>
+      <div className="backdrop" aria-hidden="true"><span /><span /><span /></div>
+      <header className="hero">
+        <div className="logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32">
+            <rect x="7" y="3" width="18" height="26" rx="3" fill="#fff" opacity="0.95" />
+            <circle cx="16" cy="13" r="4.2" fill="#a855f7" />
+            <path d="M9.5 26.5c.9-4.4 3.5-6.8 6.5-6.8s5.6 2.4 6.5 6.8z" fill="#6366f1" />
+          </svg>
+        </div>
+        <div className="hero-text">
+          <h1>Passport Photo Cropper</h1>
+          <p>Scan several passport photos at once. Each one is found, straightened and cropped to the size you need.</p>
+        </div>
+        <div className="hero-actions">
+          <span className="privacy-pill"><IconLock /> Nothing is uploaded</span>
+          <button type="button" className="help-btn" onClick={() => setHelpOpen(true)}>
+            <IconHelp /> How it works
+          </button>
+        </div>
       </header>
       <div className="layout">
         <Toolbar
@@ -154,18 +206,26 @@ export default function App() {
           onDownloadAll={downloadAll}
         />
         <main>
-          {(status || error) && <div className={`status${error ? ' error' : ''}`} role="status">{error || status}</div>}
+          {(status || error) && (
+            <div className={`status ${error ? 'error' : statusKind}`} role="status" key={error || status}>
+              {error ? <IconAlert /> : statusKind === 'busy' ? <span className="spinner" aria-hidden="true" /> : statusKind === 'done' ? <IconCheck /> : null}
+              <span>{error || status}</span>
+            </div>
+          )}
           {image ? (
             <>
-              <CropEditor image={image.bitmap} boxes={boxes} preset={preset} selectedId={selectedId} onSelect={setSelectedId} onChange={updateBox} />
+              <div className={`editor-wrap${busy ? ' scanning' : ''}`}>
+                <CropEditor image={image.bitmap} boxes={boxes} preset={preset} selectedId={selectedId} onSelect={setSelectedId} onChange={updateBox} />
+              </div>
               <PreviewStrip image={image.bitmap} boxes={boxes} selectedId={selectedId} onSelect={setSelectedId} onDownload={downloadOne} />
               <UploadDropzone onFile={onFile} compact />
             </>
           ) : (
-            <UploadDropzone onFile={onFile} />
+            <UploadDropzone onFile={onFile} onTryExample={tryExample} />
           )}
         </main>
       </div>
+      <HelpWizard open={helpOpen} onClose={closeHelp} onTryExample={tryExample} />
     </div>
   );
 }

@@ -6,7 +6,7 @@
  * aspect-ratio fitting, face-based orientation and scaling to full resolution
  * happen on the main thread.
  */
-import { autoGridCounts, chooseAxisSegments, findSegments, normalizeRect, normalizeTilt, rotateVec, wrapAngle } from '../geometry';
+import { normalizeRect, normalizeTilt, rotateVec, wrapAngle } from '../geometry';
 import type { RawBox } from '../types';
 
 // OpenCV.js typings don't cover the full runtime API (MatVector, roi, data32S…).
@@ -37,24 +37,6 @@ export function borderColor(image: ImageData): [number, number, number] {
   }
   const median = (a: number[]) => a.sort((p, q) => p - q)[a.length >> 1] ?? 255;
   return [median(ch[0]), median(ch[1]), median(ch[2])];
-}
-
-/** Fraction of the outer frame of a binary mask that is "on". */
-function frameCoverage(mask: CV): number {
-  const { rows: h, cols: w } = mask;
-  const d: Uint8Array = mask.data;
-  const t = Math.max(2, Math.round(Math.min(w, h) * 0.01));
-  let on = 0;
-  let n = 0;
-  const visit = (x: number, y: number) => { if (d[y * w + x]) on++; n++; };
-  for (let y = 0; y < h; y++) {
-    if (y < t || y >= h - t) {
-      for (let x = 0; x < w; x++) visit(x, y); // top and bottom strips
-    } else {
-      for (let x = 0; x < t; x++) { visit(x, y); visit(w - 1 - x, y); } // left and right strips
-    }
-  }
-  return n ? on / n : 0;
 }
 
 interface Masks {
@@ -325,91 +307,6 @@ export function detectScan(cv: CV, image: ImageData, aspect = 35 / 45): ScanResu
       }
     }
     return result;
-  } finally {
-    track.forEach((m) => m.delete());
-  }
-}
-
-/**
- * Grid mode: a sheet of identical photos printed edge to edge or with gutters.
- *  1. Find the rotated bounding rectangle of all content -> the grid's tilt.
- *  2. Rotate the content mask upright and cut out that rectangle.
- *  3. The fraction of content per column/row drops to ~0 in a gutter; use those
- *     gaps to split the sheet, or divide evenly when they are ambiguous.
- *  4. Map each cell's centre back into the original (tilted) image.
- */
-export function detectGrid(cv: CV, image: ImageData, rows: number, cols: number, aspect: number): RawBox[] {
-  const track: CV[] = [];
-  try {
-    const minSide = Math.min(image.width, image.height);
-    const { content, solid } = buildMasks(cv, image, Math.max(5, Math.round(minSide * 0.008)), track);
-
-    const contours = new cv.MatVector(); track.push(contours);
-    const hierarchy = new cv.Mat(); track.push(hierarchy);
-    cv.findContours(solid, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-
-    // Gather the points of every meaningful blob and take their joint rotated bounds.
-    const pts: number[] = [];
-    const minArea = image.width * image.height * 0.002;
-    for (let i = 0; i < contours.size(); i++) {
-      const c = contours.get(i);
-      if (cv.contourArea(c) >= minArea) pts.push(...(c.data32S as Int32Array));
-      c.delete();
-    }
-
-    // If photos run off the edge of the image, the "border colour" is really photo
-    // backdrop, so the content mask is meaningless: treat the whole image as the grid.
-    const fillsImage = frameCoverage(content) > 0.02;
-
-    let region = { cx: image.width / 2, cy: image.height / 2, width: image.width, height: image.height, angleDeg: 0 };
-    if (!fillsImage && pts.length >= 8) {
-      const ptMat = cv.matFromArray(pts.length / 2, 1, cv.CV_32SC2, pts); track.push(ptMat);
-      const r = cv.minAreaRect(ptMat);
-      // Only remove the tilt; a grid sheet may legitimately be landscape.
-      region = { cx: r.center.x, cy: r.center.y, ...normalizeTilt(r.size.width, r.size.height, r.angle) };
-    }
-
-    // Rotate counter-clockwise by the tilt (OpenCV's positive angle) to make the grid upright.
-    const M = cv.getRotationMatrix2D(new cv.Point(region.cx, region.cy), region.angleDeg, 1); track.push(M);
-    const upright = new cv.Mat(); track.push(upright);
-    cv.warpAffine(content, upright, M, new cv.Size(image.width, image.height), cv.INTER_NEAREST, cv.BORDER_CONSTANT, new cv.Scalar(0));
-
-    const x0 = Math.max(0, Math.round(region.cx - region.width / 2));
-    const y0 = Math.max(0, Math.round(region.cy - region.height / 2));
-    const w = Math.min(image.width - x0, Math.round(region.width));
-    const h = Math.min(image.height - y0, Math.round(region.height));
-    // Read the region straight out of the full mask (OpenCV.js 5's roi().clone()
-    // ignores the parent's row stride, so a sub-Mat can't be trusted here).
-    const colProfile = new Float32Array(w);
-    const rowProfile = new Float32Array(h);
-    const d: Uint8Array = upright.data;
-    const stride = upright.cols;
-    for (let y = 0; y < h; y++) {
-      const row = (y0 + y) * stride + x0;
-      for (let x = 0; x < w; x++) {
-        if (d[row + x]) { colProfile[x] += 1 / h; rowProfile[y] += 1 / w; }
-      }
-    }
-    // A gutter column/row is almost entirely background.
-    const segs = (p: Float32Array) => findSegments(p, 0.03, Math.max(2, Math.round(p.length * 0.004)), Math.round(p.length * 0.08));
-    const colSegsRaw = fillsImage ? [] : segs(colProfile);
-    const rowSegsRaw = fillsImage ? [] : segs(rowProfile);
-
-    const auto = autoGridCounts(w, h, aspect, cols || colSegsRaw.length, rows || rowSegsRaw.length);
-    const colSegs = chooseAxisSegments(colSegsRaw, w, cols, auto.cols);
-    const rowSegs = chooseAxisSegments(rowSegsRaw, h, rows, auto.rows);
-
-    const boxes: RawBox[] = [];
-    for (const [ry0, ry1] of rowSegs) {
-      for (const [cx0, cx1] of colSegs) {
-        // Cell centre in upright coordinates -> rotate back clockwise into the original image.
-        const ux = x0 + (cx0 + cx1) / 2 - region.cx;
-        const uy = y0 + (ry0 + ry1) / 2 - region.cy;
-        const p = rotateVec(ux, uy, region.angleDeg);
-        boxes.push({ cx: region.cx + p.x, cy: region.cy + p.y, width: cx1 - cx0, height: ry1 - ry0, angleDeg: region.angleDeg });
-      }
-    }
-    return boxes;
   } finally {
     track.forEach((m) => m.delete());
   }

@@ -1,7 +1,7 @@
 /**
  * Face detection (MediaPipe BlazeFace) and everything built on it:
  *  - detectFaceBoxes: "Faces" mode — frame a passport crop around every face.
- *  - autoOrient: fix photos that lie sideways or upside down in scan/grid mode.
+ *  - autoOrient: fix photos that lie sideways or upside down in scan mode.
  */
 import { FaceDetector, FilesetResolver, type Detection } from '@mediapipe/tasks-vision';
 import { iou, pointInBox, rotateVec } from '../geometry';

@@ -15,10 +15,7 @@ const CV_MAX_SIDE = 1600;
 export interface DetectOptions {
   mode: DetectMode;
   preset: SizePreset;
-  /** Grid mode only: 0 = detect automatically. */
-  rows: number;
-  cols: number;
-  /** Scan/grid: use face detection to turn sideways or upside-down photos upright. */
+  /** Scan mode: use face detection to turn sideways or upside-down photos upright. */
   orient: boolean;
   onStatus?: (msg: string) => void;
 }
@@ -42,17 +39,12 @@ export async function detect(source: ImageBitmap, opts: DetectOptions): Promise<
 
   opts.onStatus?.('Loading OpenCV and finding photos…');
   const { data, scale } = downscaledImageData(source);
-  const { boxes: raw, blobs } = await runCv(
-    mode === 'scan'
-      ? { kind: 'scan', image: data, aspect: presetAspect(preset) }
-      : { kind: 'grid', image: data, rows: opts.rows, cols: opts.cols, aspect: presetAspect(preset) },
-  );
+  const { boxes: raw, blobs } = await runCv({ kind: 'scan', image: data, aspect: presetAspect(preset) });
   const toFull = (b: RawBox): RawBox => ({ cx: b.cx / scale, cy: b.cy / scale, width: b.width / scale, height: b.height / scale, angleDeg: b.angleDeg });
 
   // Shrink each rectangle to the preset's shape. The small inset keeps
   // scanner-bed slivers and paper edges out of the crop.
-  const inset = mode === 'scan' ? 0.02 : 0.01;
-  let boxes = raw.map(toFull).map((b) => ({ ...b, ...fitAspectInside(b.width, b.height, presetAspect(preset), inset) }));
+  let boxes = raw.map(toFull).map((b) => ({ ...b, ...fitAspectInside(b.width, b.height, presetAspect(preset), 0.02) }));
 
   if (opts.orient && boxes.length) {
     opts.onStatus?.('Checking photo orientation…');
@@ -66,5 +58,5 @@ export async function detect(source: ImageBitmap, opts: DetectOptions): Promise<
     opts.onStatus?.('Finding faces in photos without a visible edge…');
     boxes = [...boxes, ...(await frameFacesInBlobs(source, blobs.map(toFull), boxes, preset))];
   }
-  return mode === 'scan' ? readingOrder(boxes, Math.min(source.width, source.height) * 0.15) : boxes;
+  return readingOrder(boxes, Math.min(source.width, source.height) * 0.15);
 }

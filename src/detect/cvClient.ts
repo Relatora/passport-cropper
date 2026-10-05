@@ -32,9 +32,7 @@ function getWorker(): Worker {
   return worker;
 }
 
-type WithoutId<T> = T extends unknown ? Omit<T, 'id'> : never;
-
-export function runCv(req: WithoutId<CvRequest>): Promise<CvResult> {
+export function runCv(req: Omit<CvRequest, 'id'>): Promise<CvResult> {
   const id = nextId++;
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject });

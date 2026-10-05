@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import { renderCrop } from '../export/renderCrop';
 import type { CropBox } from '../types';
+import { IconDownload } from './Icons';
 
 interface Props {
   image: ImageBitmap;
@@ -18,11 +19,11 @@ export function PreviewStrip({ image, boxes, selectedId, onSelect, onDownload }:
   return (
     <div className="previews">
       {boxes.map((b, i) => (
-        <figure key={b.id} className={b.id === selectedId ? 'selected' : ''}>
+        <figure key={b.id} className={b.id === selectedId ? 'selected' : ''} style={{ '--i': i } as CSSProperties}>
           <Thumb image={image} box={b} onClick={() => onSelect(b.id)} />
           <figcaption>
-            <span>#{i + 1}</span>
-            <button type="button" className="link" onClick={() => onDownload(i)}>Download</button>
+            <span className="num">{i + 1}</span>
+            <button type="button" className="link" onClick={() => onDownload(i)} aria-label={`Download photo ${i + 1}`}><IconDownload /> Save</button>
           </figcaption>
         </figure>
       ))}

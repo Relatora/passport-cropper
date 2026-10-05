@@ -5,11 +5,9 @@
  */
 import cvModule from '@techstark/opencv-js';
 import type { RawBox } from '../types';
-import { detectGrid, detectScan, type CV } from './cvDetect';
+import { detectScan, type CV } from './cvDetect';
 
-export type CvRequest =
-  | { id: number; kind: 'scan'; image: ImageData; aspect: number }
-  | { id: number; kind: 'grid'; image: ImageData; rows: number; cols: number; aspect: number };
+export type CvRequest = { id: number; kind: 'scan'; image: ImageData; aspect: number };
 
 export type CvResponse = { id: number; boxes: RawBox[]; blobs: RawBox[] } | { id: number; error: string };
 
@@ -31,12 +29,8 @@ self.onmessage = async (e: MessageEvent<CvRequest>) => {
   const req = e.data;
   try {
     const cv = await getCv();
-    if (req.kind === 'scan') {
-      const { photos, blobs } = detectScan(cv, req.image, req.aspect);
-      self.postMessage({ id: req.id, boxes: photos, blobs } satisfies CvResponse);
-    } else {
-      self.postMessage({ id: req.id, boxes: detectGrid(cv, req.image, req.rows, req.cols, req.aspect), blobs: [] } satisfies CvResponse);
-    }
+    const { photos, blobs } = detectScan(cv, req.image, req.aspect);
+    self.postMessage({ id: req.id, boxes: photos, blobs } satisfies CvResponse);
   } catch (err) {
     self.postMessage({ id: req.id, error: err instanceof Error ? err.message : String(err) } satisfies CvResponse);
   }

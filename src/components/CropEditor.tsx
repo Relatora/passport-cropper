@@ -13,8 +13,8 @@ interface Props {
   onChange: (box: CropBox) => void;
 }
 
-const ACCENT = '#2563eb';
-const SELECTED = '#f97316';
+const ACCENT = '#7c3aed';
+const SELECTED = '#ec4899';
 
 /**
  * Shows the uploaded image with one rotated rectangle per crop.
@@ -92,7 +92,7 @@ export function CropEditor({ image, boxes, preset, selectedId, onSelect, onChang
                 onDragEnd={(e) => onChange({ ...b, cx: e.target.x(), cy: e.target.y() })}
                 onTransformEnd={(e) => handleTransformEnd(b, e.target)}
               >
-                <Rect x={-hw} y={-hh} width={b.width} height={b.height} stroke={color} strokeWidth={2} strokeScaleEnabled={false} fill={selected ? 'rgba(249,115,22,0.10)' : 'rgba(37,99,235,0.08)'} />
+                <Rect x={-hw} y={-hh} width={b.width} height={b.height} stroke={color} strokeWidth={2} strokeScaleEnabled={false} fill={selected ? 'rgba(236,72,153,0.12)' : 'rgba(124,58,237,0.08)'} />
                 {[crownY, eyeY, chinY].map((y, k) => (
                   <Line key={k} points={[-hw, y, hw, y]} stroke={color} strokeWidth={1} strokeScaleEnabled={false} dash={[6 * px, 4 * px]} opacity={k === 1 ? 0.9 : 0.55} listening={false} />
                 ))}

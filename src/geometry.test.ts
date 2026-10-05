@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoGridCounts, boxCorners, chooseAxisSegments, findSegments, fitAspectInside, normalizeRect, wrapAngle } from './geometry';
+import { boxCorners, fitAspectInside, normalizeRect, wrapAngle } from './geometry';
 import { PRESETS, presetPixels } from './presets';
 import { readJpegDpi, setJpegDpi } from './export/jfifDpi';
 
@@ -53,41 +53,6 @@ describe('presetPixels', () => {
   it('converts mm to pixels at the requested DPI', () => {
     expect(presetPixels(PRESETS[0], 300)).toEqual({ width: 413, height: 531 });
     expect(presetPixels(PRESETS[1], 300)).toEqual({ width: 600, height: 600 });
-  });
-});
-
-describe('findSegments', () => {
-  const profile = (spec: string) => [...spec].map((c) => (c === '#' ? 10 : 0));
-  it('splits content runs at wide enough gutters', () => {
-    expect(findSegments(profile('####..####..####'), 5, 2, 2)).toEqual([[0, 4], [6, 10], [12, 16]]);
-  });
-  it('ignores gaps narrower than minGap', () => {
-    expect(findSegments(profile('###.###..###'), 5, 2, 2)).toEqual([[0, 7], [9, 12]]);
-  });
-  it('drops runs shorter than minRun', () => {
-    expect(findSegments(profile('#...######'), 5, 2, 3)).toEqual([[4, 10]]);
-  });
-});
-
-describe('chooseAxisSegments', () => {
-  it('uses detected gutters when they match the expected count', () => {
-    expect(chooseAxisSegments([[0, 48], [52, 100]], 100, 2, 0)).toEqual([[0, 48], [52, 100]]);
-  });
-  it('falls back to an even split when the count is wrong', () => {
-    expect(chooseAxisSegments([[0, 100]], 100, 2, 0)).toEqual([[0, 50], [50, 100]]);
-  });
-  it('in auto mode, rejects uneven gutters (e.g. a white band inside a photo)', () => {
-    expect(chooseAxisSegments([[0, 20], [25, 100]], 100, 0, 2)).toEqual([[0, 50], [50, 100]]);
-  });
-});
-
-describe('autoGridCounts', () => {
-  it('derives the missing axis from cell aspect', () => {
-    // Two 35×45 columns side by side, three rows tall.
-    expect(autoGridCounts(70, 135, 35 / 45, 2, 0)).toEqual({ rows: 3, cols: 2 });
-  });
-  it('picks the smallest plausible grid without hints', () => {
-    expect(autoGridCounts(70, 45, 35 / 45, 0, 0)).toEqual({ rows: 1, cols: 2 });
   });
 });
 

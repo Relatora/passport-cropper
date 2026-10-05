@@ -1,14 +1,33 @@
 import { useEffect, useRef, useState } from 'react';
+import { IconSparkle, IconUpload } from './Icons';
+import { MiniPhoto } from './illustrations';
 
 interface Props {
   onFile: (file: File) => void;
   compact?: boolean;
+  /** Load the bundled example scan (shown on the large dropzone only). */
+  onTryExample?: () => void;
+}
+
+/** Three photos bobbing on a scanner bed: the dropzone's artwork. */
+function DropArt() {
+  const cards = [{ x: 58, y: 64, r: -10, t: 0 }, { x: 105, y: 58, r: 4, t: 1 }, { x: 152, y: 66, r: 12, t: 2 }];
+  return (
+    <svg viewBox="0 0 210 120" className="drop-art ill" aria-hidden="true">
+      <rect x="8" y="10" width="194" height="104" rx="14" className="ill-bed" />
+      {cards.map((c, i) => (
+        <g key={i} transform={`translate(${c.x} ${c.y}) rotate(${c.r})`}>
+          <g className="card"><MiniPhoto tone={c.t} w={40} h={52} /></g>
+        </g>
+      ))}
+    </svg>
+  );
 }
 
 const ACCEPT = 'image/jpeg,image/png,image/webp';
 
 /** Click, drag-and-drop or paste (Ctrl+V) an image. */
-export function UploadDropzone({ onFile, compact }: Props) {
+export function UploadDropzone({ onFile, compact, onTryExample }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
 
@@ -26,7 +45,7 @@ export function UploadDropzone({ onFile, compact }: Props) {
     if (file && file.type.startsWith('image/')) onFile(file);
   };
 
-  return (
+  const zone = (
     <div
       className={`dropzone${over ? ' over' : ''}${compact ? ' compact' : ''}`}
       role="button"
@@ -39,14 +58,26 @@ export function UploadDropzone({ onFile, compact }: Props) {
     >
       <input ref={inputRef} type="file" accept={ACCEPT} hidden onChange={(e) => { pick(e.target.files); e.target.value = ''; }} />
       {compact ? (
-        <span>Choose another image…</span>
+        <><IconUpload /> <span>Choose another image…</span></>
       ) : (
         <>
-          <strong>Drop a JPEG or PNG here</strong>
-          <span>or click to choose a file, or paste with Ctrl+V</span>
-          <small>Everything is processed in your browser. Nothing is uploaded.</small>
+          <DropArt />
+          <strong>Drop your scan here</strong>
+          <span>JPEG or PNG · click to choose a file · or paste with Ctrl+V</span>
+          {/* Looks like a button, but the whole zone is the button. */}
+          <span className="drop-cta" aria-hidden="true"><IconUpload /> Choose a photo</span>
         </>
       )}
+    </div>
+  );
+
+  if (compact || !onTryExample) return zone;
+  return (
+    <div className="upload">
+      {zone}
+      <button type="button" className="link example-link" onClick={onTryExample}>
+        <IconSparkle /> No scan handy? Try an example
+      </button>
     </div>
   );
 }

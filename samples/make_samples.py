@@ -1,4 +1,4 @@
-"""Generate synthetic test images for the scan and grid detectors.
+"""Generate synthetic test images for the scan detector.
 
 Each fake "passport photo" is a 350x450 card: light backdrop, dark shoulders,
 a skin-tone head and an "UP" label so orientation is visible in the output.
@@ -64,19 +64,4 @@ for i, (cx, cy, a) in enumerate([(550, 420, -2), (1400, 430, 3), (560, 1080, -4)
     paste_rotated(scan3, white_backdrop_photo(i), cx, cy, a)
 scan3.save("samples/scan-white-on-white-no-edge.jpg", quality=90)
 
-# 3) A 2x3 printed sheet with thin gutters, slightly rotated on a white page.
-sheet = Image.new("RGB", (3 * W + 2 * 20, 2 * H + 20), (255, 255, 255))
-for r in range(2):
-    for c in range(3):
-        sheet.paste(fake_photo(r * 3 + c), (c * (W + 20), r * (H + 20)))
-page = Image.new("RGB", (1600, 1300), (255, 255, 255))
-paste_rotated(page, sheet, 800, 650, 3)
-page.save("samples/grid-sheet-2x3.jpg", quality=90)
-
-# 4) Edge-to-edge 2x2 sheet (no gutters), filling the image.
-sheet2 = Image.new("RGB", (2 * W, 2 * H))
-for r in range(2):
-    for c in range(2):
-        sheet2.paste(fake_photo(r * 2 + c), (c * W, r * H))
-sheet2.save("samples/grid-sheet-2x2-no-gutter.png")
 print("ok")

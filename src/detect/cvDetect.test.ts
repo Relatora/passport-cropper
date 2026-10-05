@@ -1,12 +1,11 @@
 /**
  * Integration tests for the OpenCV detectors. Scenes are drawn with OpenCV
- * itself, so no image fixtures are needed: tilted "photos" on a scanner bed,
- * and a tilted printed grid with gutters.
+ * itself, so no image fixtures are needed: tilted "photos" on a scanner bed.
  */
 import { createRequire } from 'node:module';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { boxCorners, readingOrder, rotateVec, wrapAngle } from '../geometry';
-import { detectGrid, detectScan, type CV } from './cvDetect';
+import { detectScan, type CV } from './cvDetect';
 
 const require = createRequire(import.meta.url);
 let cv: CV;
@@ -156,34 +155,5 @@ describe('detectScan', () => {
       // The angle includes which way is up, so no modulo here.
       expect(Math.abs(wrapAngle(b.angleDeg - t.angleDeg))).toBeLessThan(0.75);
     });
-  });
-});
-
-describe('detectGrid', () => {
-  // A 2 × 3 sheet with 16 px gutters, tilted 3° on a white page.
-  const cellW = 210, cellH = 270, gap = 16, tilt = 3;
-  const sheetCx = 600, sheetCy = 450;
-  const cells: Shape[] = [];
-  for (let r = 0; r < 2; r++) {
-    for (let c = 0; c < 3; c++) {
-      const ux = (c - 1) * (cellW + gap);
-      const uy = (r - 0.5) * (cellH + gap);
-      const a = (tilt * Math.PI) / 180;
-      cells.push({ cx: sheetCx + ux * Math.cos(a) - uy * Math.sin(a), cy: sheetCy + ux * Math.sin(a) + uy * Math.cos(a), width: cellW, height: cellH, angleDeg: tilt });
-    }
-  }
-  const image = () => scene(1200, 900, [255, 255, 255, 255], cells);
-
-  it('finds the cells from the gutters automatically', () => {
-    const found = detectGrid(cv, image(), 0, 0, 35 / 45);
-    expect(found).toHaveLength(6);
-    found.forEach((b, i) => {
-      expect(Math.hypot(b.cx - cells[i].cx, b.cy - cells[i].cy)).toBeLessThan(6);
-      expect(Math.abs(b.angleDeg - tilt)).toBeLessThan(1);
-    });
-  });
-
-  it('honours explicit rows and columns', () => {
-    expect(detectGrid(cv, image(), 2, 3, 35 / 45)).toHaveLength(6);
   });
 });
