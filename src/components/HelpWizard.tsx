@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { IconArrowLeft, IconArrowRight, IconClose, IconSparkle, IconUpload } from './Icons';
-import { SceneAdjust, SceneModes, SceneOverview, SceneResult, SceneScan, SceneSize } from './illustrations';
+import { SceneAdjust, SceneModes, SceneOverview, SceneResult, SceneScan, SceneSheet, SceneSize } from './illustrations';
 import './wizard.css';
 
 interface Step {
@@ -30,7 +30,7 @@ const STEPS: Step[] = [
     body: 'Lay the printed photos on the scanner glass with a small gap between them and scan the whole bed.',
     points: [
       'Any angle is fine. Crooked or sideways photos are straightened for you.',
-      'Scan at 300 dpi or more and save as JPEG or PNG.',
+      'Scan at 600 dpi (or more) and save as JPEG or PNG.',
       'A phone photo works too: use a plain surface, darker is better for white-background photos.',
     ],
   },
@@ -52,7 +52,7 @@ const STEPS: Step[] = [
     points: [
       'Every crop keeps exactly that shape.',
       'Dashed guide lines show where the crown, eyes and chin should fall.',
-      'Choose 300 dpi for normal prints, or 600 dpi for extra sharpness.',
+      '600 dpi suits almost any printer; 300 dpi makes smaller files, and 1200 dpi suits very high-resolution scans.',
     ],
   },
   {
@@ -72,9 +72,21 @@ const STEPS: Step[] = [
     scene: <SceneResult />,
     body: 'One JPEG per photo, straight and upright, at the exact print size, all bundled in a ZIP.',
     points: [
-      'For example 413 × 531 px at 300 dpi, which prints at exactly 35 × 45 mm.',
+      'For example 827 × 1063 px at 600 dpi, which prints at exactly 35 × 45 mm.',
       'The DPI is stored in the file, so print shops get the size right.',
-      'When printing at home, choose “Actual size” (100 %), not “Fit to page”.',
+      'Save photos one by one, or all of them at once as a ZIP.',
+    ],
+  },
+  {
+    kicker: 'Step 6 · Print',
+    title: 'Print them all on one sheet',
+    scene: <SceneSheet />,
+    body: 'Skip the photo booth: the print sheet tiles every copy onto a single print, with grey lines to cut along.',
+    points: [
+      <>One <strong>4 × 6 in photo print</strong> holds eight 35 × 45 mm photos (or six 2 × 2 in) and costs cents at a photo counter.</>,
+      'Choose 5 × 7 in, or A4 / Letter paper for a home printer.',
+      'Fill the sheet with one photo, or alternate all of them.',
+      'Print at “Actual size” (100 %), not “Fit to page”, then cut along the lines.',
     ],
   },
 ];

@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ConfirmSizeDialog } from './components/ConfirmSizeDialog';
 import { CropEditor } from './components/CropEditor';
 import { HelpWizard } from './components/HelpWizard';
 import { IconAlert, IconCheck, IconHelp, IconLock } from './components/Icons';
 import { PreviewStrip } from './components/PreviewStrip';
+import { PrintSheetPanel } from './components/PrintSheetPanel';
 import { Toolbar, type Settings } from './components/Toolbar';
 import { UploadDropzone } from './components/UploadDropzone';
 import { detect } from './detect';
 import { downloadBlob, exportPhoto, exportZip, photoFileName } from './export/zipExport';
 import { wrapAngle } from './geometry';
 import { CUSTOM_PRESET_ID, PRESETS, makeCustomPreset, presetAspect } from './presets';
-import type { CropBox, RawBox } from './types';
+import type { CropBox, RawBox, SizePreset } from './types';
 
 interface LoadedImage {
   bitmap: ImageBitmap;
@@ -27,6 +29,16 @@ const INTRO_KEY = 'passport-cropper:intro-seen';
 const introSeen = () => { try { return localStorage.getItem(INTRO_KEY) === '1'; } catch { return false; } };
 const markIntroSeen = () => { try { localStorage.setItem(INTRO_KEY, '1'); } catch { /* not persisted */ } };
 
+/** The size preset a set of settings describes (one of PRESETS, or the custom size). */
+function presetFor(s: Settings): SizePreset {
+  return s.presetId === CUSTOM_PRESET_ID ? makeCustomPreset(s.customW, s.customH) : PRESETS.find((p) => p.id === s.presetId)!;
+}
+
+/** Short name for a size, e.g. "35 × 45 mm" (preset labels carry a country list in brackets). */
+const sizeName = (p: SizePreset) => (p.id === CUSTOM_PRESET_ID ? `${p.widthMm} × ${p.heightMm} mm` : p.label.replace(/\s*\(.*\)$/, ''));
+
+const SIZE_KEYS = ['presetId', 'customW', 'customH'] as const;
+
 export default function App() {
   const [image, setImage] = useState<LoadedImage | null>(null);
   const [boxes, setBoxes] = useState<CropBox[]>([]);
@@ -39,15 +51,17 @@ export default function App() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [settings, setSettings] = useState<Settings>({
-    mode: 'scan', presetId: PRESETS[0].id, customW: 35, customH: 45, dpi: 300, orient: true,
+    mode: 'scan', presetId: PRESETS[0].id, customW: 35, customH: 45, dpi: 600, orient: true,
   });
 
-  const preset = useMemo(
-    () => (settings.presetId === CUSTOM_PRESET_ID
-      ? makeCustomPreset(settings.customW, settings.customH)
-      : PRESETS.find((p) => p.id === settings.presetId)!),
-    [settings.presetId, settings.customW, settings.customH],
-  );
+  const preset = useMemo(() => presetFor(settings), [settings.presetId, settings.customW, settings.customH]);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+
+  /** True once the user has moved, resized, rotated, added or removed a box since the last detection. */
+  const [edited, setEdited] = useState(false);
+  /** A size change waiting for the user to confirm that their adjustments may be lost. */
+  const [pendingSize, setPendingSize] = useState<Partial<Settings> | null>(null);
   const aspect = presetAspect(preset);
 
   // A new photo size changes every box's shape: keep each box's height and centre.
@@ -64,10 +78,11 @@ export default function App() {
     setError('');
     try {
       const found = await detect(img.bitmap, {
-        mode: s.mode, preset, orient: s.orient, onStatus: setStatus,
+        mode: s.mode, preset: presetFor(s), orient: s.orient, onStatus: setStatus,
       });
       if (run !== detectRun.current) return;
       setBoxes(found.map(withId));
+      setEdited(false);
       setSelectedId(null);
       if (found.length) setStatus(`Found ${found.length} photo${found.length === 1 ? '' : 's'}. Adjust the boxes if needed, then download.`, 'done');
       else setStatus('Nothing found. Try the other picture type, or add boxes by hand.', 'info');
@@ -79,7 +94,7 @@ export default function App() {
     } finally {
       if (run === detectRun.current) setBusy(false);
     }
-  }, [preset, setStatus]);
+  }, [setStatus]);
 
   const loadFile = useCallback(async (file: File, s: Settings) => {
     try {
@@ -96,6 +111,39 @@ export default function App() {
   }, [runDetect]);
 
   const onFile = useCallback((file: File) => loadFile(file, settings), [loadFile, settings]);
+
+  /**
+   * Settings changes from the toolbar. A new photo size re-runs detection (see the
+   * effect below), which replaces the boxes — so if the user has adjusted boxes by
+   * hand, the change is held back until they confirm it in a dialog.
+   */
+  const changeSettings = (patch: Partial<Settings>) => {
+    const changesSize = SIZE_KEYS.some((k) => k in patch && patch[k] !== settings[k]);
+    if (changesSize && image && edited && boxes.length) {
+      setPendingSize(patch);
+      return;
+    }
+    setSettings((s) => ({ ...s, ...patch }));
+  };
+
+  const confirmSizeChange = () => {
+    if (pendingSize) setSettings((s) => ({ ...s, ...pendingSize }));
+    setEdited(false);
+    setPendingSize(null);
+  };
+
+  // Re-detect when the photo size changes. Typing a custom size changes it on every
+  // keystroke, so that case waits for a short pause first.
+  const sizeKey = `${settings.presetId}|${settings.customW}|${settings.customH}`;
+  const lastSizeKey = useRef(sizeKey);
+  useEffect(() => {
+    if (sizeKey === lastSizeKey.current) return;
+    lastSizeKey.current = sizeKey;
+    if (!image) return;
+    const delay = settingsRef.current.presetId === CUSTOM_PRESET_ID ? 500 : 0;
+    const timer = setTimeout(() => void runDetect(image, settingsRef.current), delay);
+    return () => clearTimeout(timer);
+  }, [sizeKey, image, runDetect]);
 
   const closeHelp = () => { setHelpOpen(false); markIntroSeen(); };
 
@@ -120,7 +168,10 @@ export default function App() {
     void tryExample();
   });
 
-  const updateBox = (box: CropBox) => setBoxes((bs) => bs.map((b) => (b.id === box.id ? box : b)));
+  const updateBox = (box: CropBox) => {
+    setBoxes((bs) => bs.map((b) => (b.id === box.id ? box : b)));
+    setEdited(true);
+  };
 
   const addBox = () => {
     if (!image) return;
@@ -128,14 +179,18 @@ export default function App() {
     const box = withId({ cx: image.bitmap.width / 2, cy: image.bitmap.height / 2, height, width: height * aspect, angleDeg: 0 });
     setBoxes((bs) => [...bs, box]);
     setSelectedId(box.id);
+    setEdited(true);
   };
 
-  const rotateSelected = (deg: number) =>
+  const rotateSelected = (deg: number) => {
     setBoxes((bs) => bs.map((b) => (b.id === selectedId ? { ...b, angleDeg: wrapAngle(b.angleDeg + deg) } : b)));
+    setEdited(true);
+  };
 
   const deleteSelected = useCallback(() => {
     setBoxes((bs) => bs.filter((b) => b.id !== selectedId));
     setSelectedId(null);
+    setEdited(true);
   }, [selectedId]);
 
   useEffect(() => {
@@ -172,10 +227,14 @@ export default function App() {
       <div className="backdrop" aria-hidden="true"><span /><span /><span /></div>
       <header className="hero">
         <div className="logo" aria-hidden="true">
-          <svg viewBox="0 0 32 32">
-            <rect x="7" y="3" width="18" height="26" rx="3" fill="#fff" opacity="0.95" />
-            <circle cx="16" cy="13" r="4.2" fill="#a855f7" />
-            <path d="M9.5 26.5c.9-4.4 3.5-6.8 6.5-6.8s5.6 2.4 6.5 6.8z" fill="#6366f1" />
+          {/* Same artwork as the tab icon (public/favicon.svg), on the gradient tile. */}
+          <svg viewBox="6 6 52 52">
+            <g transform="rotate(-9 32 32)">
+              <rect x="19.5" y="14" width="25" height="33" rx="3" fill="#fff" />
+              <circle cx="32" cy="26.5" r="5.8" fill="#a855f7" />
+              <path d="M22.5 47c1.4-6.6 5-9.8 9.5-9.8s8.1 3.2 9.5 9.8z" fill="#6366f1" />
+            </g>
+            <path d="M11 21V11h10M43 11h10v10M53 43v10H43M21 53H11V43" fill="none" stroke="#fff" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
         <div className="hero-text">
@@ -193,7 +252,7 @@ export default function App() {
         <Toolbar
           settings={settings}
           preset={preset}
-          onSettings={(patch) => setSettings((s) => ({ ...s, ...patch }))}
+          onSettings={changeSettings}
           hasImage={!!image}
           hasSelection={!!selectedId}
           boxCount={boxes.length}
@@ -202,8 +261,9 @@ export default function App() {
           onAddBox={addBox}
           onRotate={rotateSelected}
           onDelete={deleteSelected}
-          onClear={() => { setBoxes([]); setSelectedId(null); }}
+          onClear={() => { setBoxes([]); setSelectedId(null); setEdited(true); }}
           onDownloadAll={downloadAll}
+          onPrintSheet={() => document.getElementById('print-sheet')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
         />
         <main>
           {(status || error) && (
@@ -218,6 +278,9 @@ export default function App() {
                 <CropEditor image={image.bitmap} boxes={boxes} preset={preset} selectedId={selectedId} onSelect={setSelectedId} onChange={updateBox} />
               </div>
               <PreviewStrip image={image.bitmap} boxes={boxes} selectedId={selectedId} onSelect={setSelectedId} onDownload={downloadOne} />
+              {boxes.length > 0 && (
+                <PrintSheetPanel image={image.bitmap} boxes={boxes} preset={preset} sizeName={sizeName(preset)} dpi={settings.dpi} baseName={image.baseName} />
+              )}
               <UploadDropzone onFile={onFile} compact />
             </>
           ) : (
@@ -226,6 +289,17 @@ export default function App() {
         </main>
       </div>
       <HelpWizard open={helpOpen} onClose={closeHelp} onTryExample={tryExample} />
+      {pendingSize && (
+        <ConfirmSizeDialog
+          from={preset}
+          to={presetFor({ ...settings, ...pendingSize })}
+          fromName={sizeName(preset)}
+          toName={sizeName(presetFor({ ...settings, ...pendingSize }))}
+          boxCount={boxes.length}
+          onConfirm={confirmSizeChange}
+          onCancel={() => setPendingSize(null)}
+        />
+      )}
     </div>
   );
 }

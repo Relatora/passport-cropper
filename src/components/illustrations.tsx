@@ -9,6 +9,7 @@
  * motion get.
  */
 import type { CSSProperties } from 'react';
+import { layoutSheet, SHEETS } from '../export/printSheet';
 import { headGuides, PRESETS } from '../presets';
 
 /** Inline style carrying CSS custom properties (delay, rotation, travel…). */
@@ -211,8 +212,53 @@ export function SceneResult() {
       <g transform="translate(262 150)">
         <g className="ill-pop" style={vars({ '--d': '2.2s' })}>
           <rect x="-50" y="-15" width="100" height="30" rx="15" className="ill-badge" />
-          <text x="0" y="-1" textAnchor="middle" className="ill-badge-text">413 × 531 px</text>
-          <text x="0" y="10" textAnchor="middle" className="ill-badge-sub">300 dpi = 35 × 45 mm</text>
+          <text x="0" y="-1" textAnchor="middle" className="ill-badge-text">827 × 1063 px</text>
+          <text x="0" y="10" textAnchor="middle" className="ill-badge-sub">600 dpi = 35 × 45 mm</text>
+        </g>
+      </g>
+    </svg>
+  );
+}
+
+/**
+ * Step 6: eight photos land one by one on a 4 × 6 in print (positions come from the
+ * app's real sheet layout), cutting guides draw around them, scissors run along the
+ * middle, and a badge sums it up.
+ */
+export function SceneSheet() {
+  const sheet = SHEETS.find((s) => s.id === '4x6')!;
+  const photo = PRESETS.find((p) => p.id === '35x45')!;
+  const layout = layoutSheet(sheet, photo);
+  const k = 228 / layout.widthMm; // mm -> scene units
+  const W = layout.widthMm * k;
+  const H = layout.heightMm * k;
+  const x0 = (320 - W) / 2;
+  const y0 = 40;
+  const pw = photo.widthMm * k;
+  const ph = photo.heightMm * k;
+  const cutY = y0 + (layout.cells[0].yMm + photo.heightMm + layout.cells[layout.cols].yMm) / 2 * k;
+  return (
+    <svg viewBox="0 0 320 200" className="ill">
+      <rect x={x0} y={y0} width={W} height={H} rx="2" className="ill-paper ill-paper-big" />
+      {layout.cells.map((c, i) => (
+        <g key={i} transform={`translate(${x0 + c.xMm * k + pw / 2} ${y0 + c.yMm * k + ph / 2})`}>
+          <g className="ill-pop" style={vars({ '--d': `${0.15 + i * 0.16}s` })}>
+            <MiniPhoto tone={i % 4} w={pw} h={ph} />
+          </g>
+          <rect x={-pw / 2 - 1} y={-ph / 2 - 1} width={pw + 2} height={ph + 2} pathLength={100} className="ill-detect ill-cut" style={vars({ '--d': `${1.7 + i * 0.05}s` })} />
+        </g>
+      ))}
+      <g transform={`translate(0 ${cutY})`}>
+        <g className="ill-scissors">
+          <circle cx="-6" cy="-5" r="4" className="ill-scissor-ring" />
+          <circle cx="-6" cy="5" r="4" className="ill-scissor-ring" />
+          <path d="M-2.5 -3 L12 3 M-2.5 3 L12 -3" className="ill-scissor-blade" />
+        </g>
+      </g>
+      <g transform="translate(160 20)">
+        <g className="ill-pop" style={vars({ '--d': '2.6s' })}>
+          <rect x="-62" y="-13" width="124" height="26" rx="13" className="ill-badge" />
+          <text x="0" y="4.5" textAnchor="middle" className="ill-badge-text">8 photos · 1 print</text>
         </g>
       </g>
     </svg>

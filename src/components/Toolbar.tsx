@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { CUSTOM_PRESET_ID, PRESETS, presetPixels } from '../presets';
 import type { DetectMode, SizePreset } from '../types';
-import { IconDownload, IconFaces, IconPlus, IconRotateLeft, IconRotateRight, IconScan, IconSparkle, IconTrash } from './Icons';
+import { IconDownload, IconFaces, IconSheet, IconPlus, IconRotateLeft, IconRotateRight, IconScan, IconSparkle, IconTrash } from './Icons';
 
 export interface Settings {
   mode: DetectMode;
@@ -26,6 +26,8 @@ interface Props {
   onDelete: () => void;
   onClear: () => void;
   onDownloadAll: () => void;
+  /** Bring the print-sheet panel into view. */
+  onPrintSheet: () => void;
 }
 
 const MODES: { id: DetectMode; title: string; hint: string; icon: ReactNode }[] = [
@@ -81,10 +83,12 @@ export function Toolbar(p: Props) {
             <select value={s.dpi} onChange={(e) => p.onSettings({ dpi: Number(e.target.value) })}>
               <option value={300}>300 dpi</option>
               <option value={600}>600 dpi</option>
+              <option value={1200}>1200 dpi</option>
             </select>
           </label>
           <small>{px.width} × {px.height} px</small>
         </div>
+        {s.dpi > 600 && <small>1200 dpi only adds detail if the scan itself was made at 1200 dpi or more.</small>}
       </section>
 
       <section>
@@ -108,6 +112,9 @@ export function Toolbar(p: Props) {
         <Step n={4}>Download</Step>
         <button type="button" className="primary" disabled={!p.boxCount || p.busy} onClick={p.onDownloadAll}>
           <IconDownload /> Download all as ZIP ({p.boxCount})
+        </button>
+        <button type="button" className="sheet-shortcut" disabled={!p.boxCount} onClick={p.onPrintSheet}>
+          <IconSheet /> Make a print sheet
         </button>
       </section>
     </aside>

@@ -59,6 +59,9 @@ export const IconArrowLeft = (p: P) => (
 export const IconArrowRight = (p: P) => (
   <Icon {...p}><path d="M5 12h14M13 6l6 6-6 6" /></Icon>
 );
+export const IconSheet = (p: P) => (
+  <Icon {...p}><rect x="3" y="5" width="18" height="14" rx="1.5" /><rect x="6" y="8" width="3.5" height="4.5" rx="0.4" /><rect x="10.25" y="8" width="3.5" height="4.5" rx="0.4" /><rect x="14.5" y="8" width="3.5" height="4.5" rx="0.4" /></Icon>
+);
 export const IconAlert = (p: P) => (
   <Icon {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.5h.01" /></Icon>
 );

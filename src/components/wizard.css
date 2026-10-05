@@ -16,7 +16,10 @@
   position: relative;
   width: min(880px, 100%);
   max-height: calc(100dvh - 32px);
-  overflow: auto;
+  /* Vertical scrolling for small screens only: the step slide-in briefly reaches
+     past the sides and must not produce a horizontal scroll bar. */
+  overflow-x: hidden;
+  overflow-y: auto;
   border-radius: 24px;
   background: var(--panel-solid);
   border: 1px solid var(--border);
@@ -247,6 +250,18 @@
 .ill-badge { fill: var(--teal); }
 .ill-badge-text { font: 700 11px system-ui, sans-serif; fill: #fff; }
 .ill-badge-sub { font: 500 7.5px system-ui, sans-serif; fill: rgba(255, 255, 255, 0.9); }
+
+/* Print sheet scene */
+.ill-cut { stroke: #b8b8c8; stroke-width: 1; }
+.ill-scissor-ring { fill: none; stroke: var(--brand-3); stroke-width: 2; }
+.ill-scissor-blade { stroke: var(--brand-3); stroke-width: 2.4; stroke-linecap: round; }
+.ill-scissors { transform-box: view-box; transform-origin: 0 0; transform: translateX(160px); animation: ill-snip 6s infinite; }
+@keyframes ill-snip {
+  0%, 38% { opacity: 0; transform: translateX(36px); }
+  42% { opacity: 1; transform: translateX(36px); }
+  78% { opacity: 1; transform: translateX(286px); }
+  84%, 100% { opacity: 0; transform: translateX(286px); }
+}
 
 /* Reduced motion: show each scene's still picture instead of a frozen keyframe. */
 @media (prefers-reduced-motion: reduce) {

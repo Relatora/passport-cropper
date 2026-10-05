@@ -18,7 +18,8 @@ Everything runs in the browser. The photos are never uploaded anywhere.
 - **Ordinary photos of one or more people**: one passport crop per face.
 - **Animated step-by-step guide** that opens on the first visit (and from **How it works**), showing how to scan, what to pick and what you get.
 - **Common sizes**: 35×45 mm (UK, EU, Schengen, India, Australia), 2×2 in (US), 33×48 mm (China visa), 35×35 mm, 50×70 mm (Canada), or custom.
-- **Print-ready output** at 300 or 600 dpi, with the DPI written into the JPEG so it prints at the right size.
+- **Print sheets**: tile the photos onto one 4 × 6 in or 5 × 7 in photo print, or an A4 / Letter page, with cutting guides. Eight 35 × 45 mm photos fit on a 4 × 6 in print.
+- **Print-ready output** at 600 dpi by default (or 300 / 1200 dpi), with the DPI written into the JPEG so it prints at the right size.
 - **Private**: no server and no uploads. Images are processed on your device with OpenCV and MediaPipe compiled to WebAssembly.
 
 ![Four white-background photos whose edges are barely visible, each found and straightened](docs/screenshots/scan-white-on-white.png)
@@ -29,9 +30,9 @@ The screenshots use the synthetic test images in [`samples/`](samples/).
 
 ![The guide's first step: tilted photos on a scanner turned into straight passport photos](docs/screenshots/guide.png)
 
-The **How it works** guide walks through the whole flow in six animated steps: what the app
+The **How it works** guide walks through the whole flow in seven animated steps: what the app
 does, how to scan, which picture type to choose, the photo size and its head guide lines,
-adjusting boxes, and what the downloaded files look like. The illustrations are inline SVG
+adjusting boxes, what the downloaded files look like, and printing them all on one sheet. The illustrations are inline SVG
 animated with CSS (`src/components/illustrations.tsx`, `wizard.css`); with *reduce motion*
 turned on, each step shows a still picture instead. The last step offers to load an example
 scan, which is also reachable directly at `#example`.
@@ -67,11 +68,42 @@ Every detection can be corrected by hand. You can drag a box, resize it from a c
 snaps at 90°), or turn it by 90° with the buttons. The ▲ marks the top of the photo.
 Dashed lines show where the crown, eyes and chin should fall for the chosen size.
 
+## Print sheets
+
+![Eight passport photos tiled on a 4 × 6 in print, with the sheet options beside the preview](docs/screenshots/print-sheet.png)
+
+Instead of paying for passport photos at a shop, put every copy on **one standard print**
+and have it printed for cents at a photo counter, or at home. The **Print sheet** card
+below the previews (also reachable from **Make a print sheet** in the Download section)
+shows a live preview and offers:
+
+| Sheet | Printed by | 35 × 45 mm | 2 × 2 in |
+| --- | --- | --- | --- |
+| 4 × 6 in (10 × 15 cm) | photo counter, borderless | 8 | 6 |
+| 5 × 7 in (13 × 18 cm) | photo counter, borderless | 10 | 6 |
+| A4 | home printer, 6 mm margin | 32 | 15 |
+| US Letter | home printer, 6 mm margin | 28 | 20 |
+
+- **Layout**: the sheet is turned portrait or landscape, whichever holds more photos, and
+  the spare space is shared out evenly so the photos are easy to cut apart. Thin grey lines
+  mark where to cut.
+- **Contents**: fill the sheet with one photo, or alternate all of them (handy when a family
+  is renewing together).
+- **Exact size**: the sheet is a JPEG with its DPI stored, so printing at *Actual size / 100 %*
+  gives true 35 × 45 mm photos. Browsers on phones can't create very large images, so a
+  sheet uses the chosen DPI only while it stays under 16 megapixels, and otherwise steps
+  down to 600 and then 300 dpi (A4 and Letter come out at 300 dpi, the usual home-print
+  resolution).
+
+The layout maths is in [`src/export/printSheet.ts`](src/export/printSheet.ts), with tests in
+`printSheet.test.ts`.
+
 ## Output
 
-Each photo is rendered at the exact pixel size for the chosen DPI (35×45 mm at 300 dpi is
-413×531 px). The JPEG's JFIF header is patched to carry that DPI, so it prints at the
-right physical size.
+Each photo is rendered at the exact pixel size for the chosen DPI: 600 dpi by default
+(35×45 mm is 827×1063 px), or 300 dpi (413×531 px) and 1200 dpi (1654×2126 px). 1200 dpi
+only adds real detail when the scan itself was made at 1200 dpi or more. The JPEG's JFIF
+header is patched to carry that DPI, so it prints at the right physical size.
 
 ## Code map
 
@@ -86,8 +118,9 @@ src/
     cv.worker.ts          runs cvDetect in a Web Worker
     faces.ts              MediaPipe face detection, face framing, auto-orientation
   components/             Toolbar, CropEditor (react-konva), PreviewStrip, UploadDropzone,
+                          PrintSheetPanel, ConfirmSizeDialog,
                           HelpWizard + illustrations (animated SVG guide), Icons
-  export/                 crop rendering, JFIF DPI patching, ZIP
+  export/                 crop rendering, JFIF DPI patching, ZIP, print-sheet layout
 samples/                  synthetic test images and the script that generates them
 ```
 

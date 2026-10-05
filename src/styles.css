@@ -425,8 +425,59 @@ main { min-width: 0; display: grid; gap: 16px; animation: rise 0.6s 0.15s cubic-
 }
 @keyframes deal { from { opacity: 0; transform: translateY(18px) scale(0.85) rotate(-4deg); } }
 
+/* ───────────── Print sheet ───────────── */
+
+.sheet-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(240px, 1fr);
+  gap: 22px;
+  align-items: center;
+  padding: 20px;
+  border-radius: 20px;
+  background: var(--panel);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  animation: rise 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+.sheet-preview {
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--stage-bg);
+}
+.sheet-preview canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 380px;
+  width: auto;
+  height: auto;
+  border-radius: 3px;
+  background: #fff;
+  /* A print lying on a desk: slight tilt and a soft shadow. */
+  transform: rotate(-1.5deg);
+  box-shadow: 0 14px 30px -12px rgba(30, 27, 75, 0.45);
+  transition: transform 0.3s;
+}
+.sheet-preview canvas:hover { transform: rotate(0deg) scale(1.02); }
+.sheet-preview canvas.flash { animation: sheet-in 0.4s ease-out; }
+@keyframes sheet-in { from { opacity: 0.35; transform: rotate(-1.5deg) scale(0.97); } }
+
+.sheet-controls { display: grid; gap: 12px; }
+.sheet-controls h2 { margin: 0; font-size: 1.25rem; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; width: fit-content; }
+.sheet-controls label { display: grid; gap: 4px; font-size: 0.85rem; color: var(--muted); }
+.sheet-pitch { margin: 0; color: var(--muted); }
+.sheet-pitch strong { color: var(--text); }
+.sheet-fit { margin: 0; padding: 8px 12px; border-radius: 10px; background: var(--success-soft); color: var(--success); font-size: 0.9rem; }
+.sheet-fit.none { background: var(--danger-soft); color: var(--danger); }
+.sheet-controls small { color: var(--muted); }
+.sheet-shortcut { width: 100%; }
+.sheet-shortcut svg { color: var(--brand-2); }
+
 @media (max-width: 860px) {
   .layout { grid-template-columns: 1fr; }
+  .sheet-panel { grid-template-columns: 1fr; }
   .toolbar { position: static; }
 }
 
